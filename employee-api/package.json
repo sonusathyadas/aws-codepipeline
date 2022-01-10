@@ -1,0 +1,22 @@
+{
+    "name": "employee-service",
+    "version": "1.0.0",
+    "description": "Sample employee management apis",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "nodemon index.js"
+    },
+    "author": "Sonu Sathyadas",
+    "license": "ISC",
+    "dependencies": {
+        "@aws-sdk/client-dynamodb": "^3.44.0",
+        "@aws-sdk/util-dynamodb": "^3.45.0",
+        "cors": "^2.8.5",
+        "express": "^4.17.2",
+        "swagger-ui-express": "^4.3.0"
+    },
+    "devDependencies": {
+        "nodemon": "^2.0.15"
+    }
+}
