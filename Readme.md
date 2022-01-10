@@ -1,6 +1,6 @@
 # Enable CI/CD using Code Pipeline
 
-
+![Structure](images/app-structure.png)
 ## Setting up IAM user permissions and Http Git Credentials
 To perform CodeCommit operations, the IAM user requires some permissions. You also need to obtain the Git credentials (username + password)  to push the code to CodeCommit.
 
@@ -52,71 +52,68 @@ To perform CodeCommit operations, the IAM user requires some permissions. You al
 3) Enter the following JSON code and click on `Next:Tags`.
     ```json
     {
-      "Version": "2012-10-17",
-      "Statement": [
-        {
-          "Sid": "CloudWatchLogsPolicy",
-          "Effect": "Allow",
-          "Action": [
-            "logs:CreateLogGroup",
-            "logs:CreateLogStream",
-            "logs:PutLogEvents"
-          ],
-          "Resource": "*"
-        },
-        {
-          "Sid": "CodeCommitPolicy",
-          "Effect": "Allow",
-          "Action": [
-            "codecommit:GitPull"
-          ],
-          "Resource": "*"
-        },
-        {
-          "Sid": "S3GetObjectPolicy",
-          "Effect": "Allow",
-          "Action": [
-            "s3:GetObject",
-            "s3:GetObjectVersion"
-          ],
-          "Resource": "*"
-        },
-        {
-          "Sid": "S3PutObjectPolicy",
-          "Effect": "Allow",
-          "Action": [
-            "s3:PutObject"
-          ],
-          "Resource": "*"
-        },
-        {
-          "Sid": "ECRPullPolicy",
-          "Effect": "Allow",
-          "Action": [
-            "ecr:BatchCheckLayerAvailability",
-            "ecr:GetDownloadUrlForLayer",
-            "ecr:BatchGetImage"
-          ],
-          "Resource": "*"
-        },
-        {
-          "Sid": "ECRAuthPolicy",
-          "Effect": "Allow",
-          "Action": [
-            "ecr:GetAuthorizationToken"
-          ],
-          "Resource": "*"
-        },
-        {
-          "Sid": "S3BucketIdentity",
-          "Effect": "Allow",
-          "Action": [
-            "s3:GetBucketAcl",
-            "s3:GetBucketLocation"
-          ],
-          "Resource": "*"
-        }
-      ]
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "CloudWatchLogsPolicy",
+                "Effect": "Allow",
+                "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Sid": "CodeCommitPolicy",
+                "Effect": "Allow",
+                "Action": [
+                    "codecommit:GitPull"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Sid":"CodeBuildPolicy",
+                "Effect":"Allow",
+                "Action":[
+                    "codebuild:CreateReportGroup",
+                    "codebuild:CreateReport",                            
+                    "codebuild:UpdateReport",
+                    "codebuild:BatchPutCodeCoverages",
+                    "codebuild:BatchPutTestCases"
+                ],
+                "Resource":"*"
+            },
+            {
+                "Sid": "S3Policy",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:GetBucketAcl",
+                    "s3:PutObject",
+                    "s3:GetObject",
+                    "s3:GetBucketLocation",
+                    "s3:GetObjectVersion"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Sid": "ECRPolicy",
+                "Effect": "Allow",
+                "Action": [
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:BatchGetImage",
+                    "ecr:CompleteLayerUpload",
+                    "ecr:GetAuthorizationToken",
+                    "ecr:InitiateLayerUpload",
+                    "ecr:PutImage",
+                    "ecr:UploadLayerPart"
+                ],
+                "Resource": "*"
+            }
+        ]
     }
     ```
 4) In the tags page you can specify some tags optionally. Click on the `Next:Create` button.
@@ -125,3 +122,58 @@ To perform CodeCommit operations, the IAM user requires some permissions. You al
 7) On the Create role page, with AWS Service already selected, choose `CodeBuild`, and then choose `Next:Permissions`.
 8) On the Attach permissions policies page, select `Custom-CodeBuildServiceRolePolicy`, and then choose `Next: Review`.
 9) On the Create role and review page, for Role name, enter a name for the role such as `Custom-CodeBuildServiceRole`, and then choose `Create role`.
+
+## Create a CodeBuild project to build and push Docker image to ECR
+1) Open browser and navigate to AWS Management console. Search for `CodeBuild` and navigate to CodeBuild service console.
+2) In the CodeBuild console, click on the `Create project` button.
+3) In the `Create build project` page, specify the build project name as `Employee-API-Build`. Optionally specify a description.
+    
+    ![Build1](images/image5.png)
+
+4) In the `Source` section, select the `Source provider` as `AWS CodeCommit`. Choose the `employee-api` from the repository search text box. For branch, select `main` branch.
+
+    ![Build2](images/image6.png)
+
+5) In the `Environment` section, 
+
+    * Choose `Managed Image` for `Environment image`.
+    * Choose operating system as `Ubuntu`.
+    * Choose runtime as `Standard`.
+    * Select image as `aws/codebuild/standard:5.0`
+    * Select Image version as `Always use latest image for this runtime version`.
+    * Select the check box for `Privileged` as it is required for Docker image build.
+    * For the service role, select `Existing role` and select the `Custom-CodeBuildServiceRole` which your have created in the previous step.
+    * Expand the `Additional configuration` section and enter the following environment variables.
+        * AWS_DEFAULT_REGION with a value of region-ID
+        * AWS_ACCOUNT_ID with a value of account-ID
+        * IMAGE_TAG with a value of `latest`
+        * IMAGE_REPO_NAME with a value of Amazon-ECR-repo-name (eg: employee-api)
+6) For the `Buildspec` section, for `build specifications` select `Insert build commands` . Click on the switch to editor enter the following YAML code.
+    ```yml
+    version: 0.2
+    phases:
+      pre_build:
+        commands:
+          - echo Logging in to Amazon ECR...
+          - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      build:
+        commands:
+          - echo Build started on `date`
+          - echo Building the Docker image...          
+          - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+          - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG      
+      post_build:
+        commands:
+          - echo Build completed on `date`
+          - echo Pushing the Docker image...
+          - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+    ```
+7) Leave the other fields as default and click on `Create project`.
+8) After the project has been created, click on the `Start Build` command button to start the build process.
+9) When the build process complete successfully, you will see the success status in the build page.
+    
+    ![Image7](images/image7.png) 
+
+10) You can verify the ECR repository to confirm the docker image is build and pushed into the `employee-api` repository
+
+    ![Image8](images/image8.png) 
